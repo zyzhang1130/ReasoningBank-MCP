@@ -517,6 +517,22 @@ await mcp_call("retrieve_memory", {
 - 不提供 `agent_id` 时检索所有记忆
 - 建议 SubAgent 使用自己的名称作为 `agent_id`
 
+### Mind2Web 集成
+
+- `src/mind2web/` 模块包含 Mind2Web 数据加载、候选过滤、few-shot Prompt 以及评测指标。
+- 默认 3-shot 模板位于 `src/prompts/mind2web_llm_prompt.json`，可通过 `--prompt-template` 指定自定义文件。
+- 使用 `scripts/eval_mind2web.py` 直接运行评测：
+  ```bash
+  python scripts/eval_mind2web.py \
+    --config config.yaml \
+    --data-root /path/to/Mind2Web/test \
+    --split test_task \
+    --scores-pickle /path/to/scores_all_data.pkl \
+    --top-k 50 \
+    --output-dir outputs/mind2web_test_task
+  ```
+- 更详细的集成说明（数据下载、Top-K 过滤、Macro/Micro 计算方式等）见 [docs/mind2web_integration.md](docs/mind2web_integration.md)。
+
 ### MaTTS（Memory-aware Test-Time Scaling）
 
 ReasoningBank MCP 只负责“记忆层”，MaTTS 的并行/串行扩展需要在 Agent 控制器层面实现。我们在 [docs/matts_playbook.md](docs/matts_playbook.md) 中提供了一个最小实践手册，演示：

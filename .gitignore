@@ -40,6 +40,7 @@ env/
 data/
 *.json
 !config.yaml
+!src/prompts/mind2web_llm_prompt.json
 
 # 日志
 *.log
