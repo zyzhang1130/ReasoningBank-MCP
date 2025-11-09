@@ -24,6 +24,8 @@ class MemoryManagerInitializer(ComponentInitializer):
     @property
     def enabled(self) -> bool:
         """根据配置判断是否启用"""
+        if hasattr(self.config, "is_paper_faithful_mode") and self.config.is_paper_faithful_mode():
+            return False
         return self.config.get("memory_manager", "enabled", default=True)
 
     async def initialize(self, context: Dict[str, Any]) -> Any:

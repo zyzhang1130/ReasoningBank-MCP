@@ -1,3 +1,8 @@
+# 运行模式（default | paper_faithful）
+#  - paper_faithful 会强制使用论文同款设置（纯余弦检索、禁用记忆管理等）
+mode:
+  preset: "default"
+
 # LLM 配置
 llm:
   provider: "dashscope"  # dashscope | openai | anthropic
@@ -39,9 +44,9 @@ embedding:
     base_url: "https://api.openai.com/v1"
     model: "text-embedding-3-small"
 
-# 检索配置
+# 检索配置（在 paper_faithful 模式下会自动切换为 cosine）
 retrieval:
-  strategy: "hybrid"  # cosine | hybrid | llm_assisted
+  strategy: "hybrid"  # cosine | hybrid
   default_top_k: 1
   max_top_k: 10
   min_score_threshold: 0.85  # 最小相关度阈值，低于此值的记忆不会被返回
@@ -82,7 +87,7 @@ server:
   version: "0.1.0"
   log_level: "INFO"  # DEBUG | INFO | WARNING | ERROR
 
-# 记忆管理配置
+# 记忆管理配置（paper_faithful 模式下会自动禁用）
 memory_manager:
   enabled: true  # 是否启用记忆管理器
 
@@ -118,4 +123,3 @@ memory_manager:
     original_handling: "archive"  # archive | delete | mark
     archive:
       keep_embeddings: false  # 归档时是否保留embedding
-

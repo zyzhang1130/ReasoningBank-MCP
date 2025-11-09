@@ -127,10 +127,32 @@ class Config:
             raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
 
         with open(self.config_path, 'r', encoding='utf-8') as f:
-            self._config = yaml.safe_load(f)
+            self._config = yaml.safe_load(f) or {}
 
         # 替换环境变量
         self._replace_env_variables(self._config)
+
+        # 根据运行模式应用额外约束
+        self._apply_mode_overrides()
+
+    def _apply_mode_overrides(self):
+        """根据模式调整配置，确保论文一致性"""
+
+        mode = self.get_mode()
+        if mode != 'paper_faithful':
+            return
+
+        # Paper 版本中只允许纯余弦检索
+        retrieval_conf = self._config.setdefault('retrieval', {})
+        retrieval_conf['strategy'] = 'cosine'
+
+        # 确保 MemoryManager 被禁用
+        memory_manager_conf = self._config.setdefault('memory_manager', {})
+        memory_manager_conf['enabled'] = False
+
+        # 强制同步提取避免异步处理带来的差异
+        extraction_conf = self._config.setdefault('extraction', {})
+        extraction_conf['async_by_default'] = False
 
     def _replace_env_variables(self, config: Any) -> Any:
         """
@@ -240,6 +262,19 @@ class Config:
     def get_extraction_config(self) -> Dict[str, Any]:
         """获取记忆提取配置"""
         return self.get('extraction', default={})
+
+    def get_mode(self) -> str:
+        """返回当前运行模式（default | paper_faithful 等）"""
+        return self.get('mode', 'preset', default='default')
+
+    def is_mode(self, name: str) -> bool:
+        """判断当前模式是否匹配给定名称"""
+        current = self.get_mode()
+        return isinstance(current, str) and current.lower() == name.lower()
+
+    def is_paper_faithful_mode(self) -> bool:
+        """是否启用 ReasoningBank 论文同款模式"""
+        return self.is_mode('paper_faithful')
 
     @property
     def all(self) -> Dict[str, Any]:
