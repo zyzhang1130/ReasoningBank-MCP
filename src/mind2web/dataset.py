@@ -189,7 +189,18 @@ class Mind2WebSample:
     def history_text(self) -> str:
         if not self.history:
             return "None"
-        return "\n".join(self.history)
+        normalized: List[str] = []
+        for item in self.history:
+            if isinstance(item, str):
+                normalized.append(_normalize_text(item))
+            elif isinstance(item, (list, tuple)):
+                joined = " ".join(_normalize_text(str(part)) for part in item if part)
+                normalized.append(joined or "<empty>")
+            elif isinstance(item, dict):
+                normalized.append(_normalize_text(json.dumps(item, ensure_ascii=False)))
+            else:
+                normalized.append(_normalize_text(str(item)))
+        return "\n".join(normalized)
 
     def score_lookup_keys(self) -> List[str]:
         keys = [
@@ -343,14 +354,20 @@ class Mind2WebDataset(Iterable[Mind2WebSample]):
         source_path: Path,
         task: Dict[str, Any],
     ) -> Mind2WebSample:
+        action_type = action.get("action_type")
+        if isinstance(action_type, dict):
+            action_type = action_type.get("op") or action_type.get("original_op")
+
         action_type = (
-            action.get("action_type")
+            action_type
             or action.get("action")
             or action.get("operation")
             or action.get("type")
             or "CLICK"
         )
-        action_type = action_type.upper()
+        if isinstance(action_type, dict):
+            action_type = action_type.get("op") or action_type.get("original_op") or "CLICK"
+        action_type = str(action_type).upper()
 
         action_value = action.get("value") or action.get("input_text") or action.get("text")
 

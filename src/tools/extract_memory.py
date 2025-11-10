@@ -2,8 +2,13 @@
 import json
 import uuid
 import asyncio
+import logging
+import re
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExtractMemoryTool:
@@ -26,11 +31,24 @@ class ExtractMemoryTool:
         self.embedding = embedding_provider
         self.memory_manager = memory_manager
 
+        self.paper_mode = False
+        if hasattr(config, "is_paper_faithful_mode"):
+            try:
+                self.paper_mode = bool(config.is_paper_faithful_mode())
+            except Exception:  # pragma: no cover - 防御
+                self.paper_mode = False
+
         # 提取配置
         extraction_config = config.get("extraction", default={})
-        self.max_memories = extraction_config.get("max_memories_per_trajectory", 3)
-        self.judge_temp = extraction_config.get("judge_temperature", 0.0)
-        self.extract_temp = extraction_config.get("extract_temperature", 1.0)
+        if self.paper_mode:
+            # 论文模式要求固定的提取上限与温度
+            self.max_memories = 3
+            self.judge_temp = 0.0
+            self.extract_temp = 1.0
+        else:
+            self.max_memories = extraction_config.get("max_memories_per_trajectory", 3)
+            self.judge_temp = extraction_config.get("judge_temperature", 0.0)
+            self.extract_temp = extraction_config.get("extract_temperature", 1.0)
         self.async_by_default = extraction_config.get("async_by_default", True)
 
     async def execute(
@@ -100,7 +118,12 @@ class ExtractMemoryTool:
 
             # 3. 提取记忆项
             from ..prompts.templates import get_extract_prompt
-            extract_prompt = get_extract_prompt(query, trajectory_text, success_signal)
+            extract_prompt = get_extract_prompt(
+                query,
+                trajectory_text,
+                success_signal,
+                paper_mode=self.paper_mode
+            )
 
             response = await self.llm.chat(
                 messages=[{"role": "user", "content": extract_prompt}],
@@ -112,6 +135,16 @@ class ExtractMemoryTool:
 
             # 限制数量
             memories = memories[:self.max_memories]
+
+            memories = self._normalize_memory_items(memories)
+            if not memories:
+                logger.warning("记忆提取结果为空，可能是 LLM 响应格式不符合要求")
+                return {
+                    "status": "completed",
+                    "success": success_signal,
+                    "extracted_count": 0,
+                    "memories": []
+                }
 
             # 5. 构建记忆项和嵌入
             new_memories = []
@@ -127,6 +160,7 @@ class ExtractMemoryTool:
                     "agent_id": agent_id,
                     "timestamp": current_time,
                     "success": success_signal,
+                    "source": "success" if success_signal else "failure",
                     "title": mem_data["title"],
                     "description": mem_data["description"],
                     "content": mem_data["content"],
@@ -247,31 +281,80 @@ class ExtractMemoryTool:
 
     def _parse_llm_response(self, response: str) -> List[Dict]:
         """解析 LLM 返回的记忆项"""
+        if self.paper_mode:
+            return self._parse_markdown_memories(response)
+
         try:
-            # 尝试提取 JSON
             data = self._parse_json_response(response)
-
-            if "memories" in data:
-                return data["memories"]
-            else:
-                return []
-
         except Exception:
             return []
 
+        return data.get("memories", []) if isinstance(data, dict) else []
+
+    def _strip_code_fences(self, response: str) -> str:
+        """去除 Markdown 代码块包装"""
+        text = response.strip()
+        if text.startswith("```"):
+            # 移除 ```json / ``` 开头
+            parts = text.split("\n", 1)
+            if len(parts) == 2:
+                text = parts[1]
+        if text.endswith("```"):
+            text = text[:-3]
+        return text.strip()
+
     def _parse_json_response(self, response: str) -> Dict:
         """从响应中提取 JSON"""
-        # 移除可能的 markdown 代码块标记
-        response = response.strip()
-        if response.startswith("```json"):
-            response = response[7:]
-        if response.startswith("```"):
-            response = response[3:]
-        if response.endswith("```"):
-            response = response[:-3]
-
-        response = response.strip()
+        response = self._strip_code_fences(response)
         return json.loads(response)
+
+    def _parse_markdown_memories(self, response: str) -> List[Dict]:
+        """解析论文模式下的 Markdown 输出"""
+        text = self._strip_code_fences(response)
+        pattern = re.compile(r"#\s*Memory Item[^\n]*\n(?P<body>.*?)(?=\n#\s*Memory Item|\Z)", re.S)
+        items = []
+
+        for match in pattern.finditer(text):
+            body = match.group("body")
+            title = self._extract_markdown_field(body, "Title")
+            description = self._extract_markdown_field(body, "Description")
+            content = self._extract_markdown_field(body, "Content")
+
+            if title or description or content:
+                items.append({
+                    "title": title,
+                    "description": description,
+                    "content": content
+                })
+
+        return items
+
+    def _extract_markdown_field(self, text: str, heading: str) -> str:
+        """提取 Markdown 字段内容"""
+        pattern = re.compile(rf"##\s*{heading}\s+(.*?)(?=\n##|\Z)", re.S)
+        match = pattern.search(text)
+        if not match:
+            return ""
+        return match.group(1).strip()
+
+    def _normalize_memory_items(self, memories: List[Dict]) -> List[Dict]:
+        """确保记忆项包含论文要求的字段"""
+        normalized = []
+        for mem in memories:
+            if not isinstance(mem, dict):
+                continue
+            title = str(mem.get("title", "")).strip()
+            description = str(mem.get("description", "")).strip()
+            content = str(mem.get("content", "")).strip()
+            if not (title and description and content):
+                continue
+            normalized.append({
+                "title": title,
+                "description": description,
+                "content": content
+            })
+
+        return normalized
 
     def _extract_tags(self, memory_data: Dict, query: str) -> List[str]:
         """从记忆内容中提取标签"""

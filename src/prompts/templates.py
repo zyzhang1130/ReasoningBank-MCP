@@ -1,7 +1,7 @@
 """提示词模板"""
 
 
-# 成功轨迹提取提示词
+# 成功轨迹提取提示词（默认模式）
 EXTRACT_SUCCESS_PROMPT = """你是一个专业的AI经验总结专家。请分析以下成功完成的任务轨迹，并提取可复用的推理策略。
 
 **任务查询：**
@@ -39,7 +39,7 @@ EXTRACT_SUCCESS_PROMPT = """你是一个专业的AI经验总结专家。请分�
 """
 
 
-# 失败轨迹提取提示词
+# 失败轨迹提取提示词（默认模式）
 EXTRACT_FAILURE_PROMPT = """你是一个专业的AI经验总结专家。请分析以下失败的任务轨迹，并提取教训和预防策略。
 
 **任务查询：**
@@ -75,6 +75,54 @@ EXTRACT_FAILURE_PROMPT = """你是一个专业的AI经验总结专家。请分�
 ```
 
 请按照上述格式输出，只输出JSON，不要包含其他内容。
+"""
+
+
+# 论文原始实现的成功提示词
+PAPER_SUCCESS_PROMPT = """You are an expert in web navigation. You will be given a user query and the corresponding trajectory that represents how an agent successfully accomplished the task.
+## Guidelines
+You need to extract and summarize useful insights in the format of memory items based on the agent's successful trajectory.
+The goal of summarized memory items is to be helpful and generalizable for future similar tasks.
+## Important notes
+- You must first think why the trajectory is successful, and then summarize the insights.
+- You can extract at most 3 memory items from the trajectory.
+- You must not repeat similar or overlapping items.
+- Do not mention specific websites, queries, or string contents. Focus on generalizable insights.
+## Output Format
+Your output must strictly follow the Markdown format shown below:
+```
+# Memory Item i
+## Title <the title of the memory item>
+## Description <one sentence summary of the memory item>
+## Content <1-3 sentences describing the insights learned to successfully accomplishing the task>
+```
+## Inputs
+Query: {query}
+Trajectory: {trajectory}
+"""
+
+
+# 论文原始实现的失败提示词
+PAPER_FAILURE_PROMPT = """You are an expert in web navigation. You will be given a user query and the corresponding trajectory that represents how an agent attempted to resolve the task but failed.
+## Guidelines
+You need to extract and summarize useful insights in the format of memory items based on the agent's failed trajectory.
+The goal of summarized memory items is to be helpful and generalizable for future similar tasks.
+## Important notes
+- You must first reflect and think why the trajectory failed, and then summarize what lessons you have learned or strategies to prevent the failure in the future.
+- You can extract at most 3 memory items from the trajectory.
+- You must not repeat similar or overlapping items.
+- Do not mention specific websites, queries, or string contents. Focus on generalizable insights.
+## Output Format
+Your output must strictly follow the Markdown format shown below:
+```
+# Memory Item i
+## Title <the title of the memory item>
+## Description <one sentence summary of the memory item>
+## Content <1-3 sentences describing the insights learned to successfully accomplishing the task>
+```
+## Inputs
+Query: {query}
+Trajectory: {trajectory}
 """
 
 
@@ -141,7 +189,7 @@ MEMORY_MERGE_PROMPT = """你是一个经验提炼专家。以下是 {len(memorie
 """
 
 
-def get_extract_prompt(query: str, trajectory: str, success: bool) -> str:
+def get_extract_prompt(query: str, trajectory: str, success: bool, paper_mode: bool = False) -> str:
     """
     获取记忆提取提示词
 
@@ -153,7 +201,10 @@ def get_extract_prompt(query: str, trajectory: str, success: bool) -> str:
     Returns:
         完整的提示词
     """
-    template = EXTRACT_SUCCESS_PROMPT if success else EXTRACT_FAILURE_PROMPT
+    if paper_mode:
+        template = PAPER_SUCCESS_PROMPT if success else PAPER_FAILURE_PROMPT
+    else:
+        template = EXTRACT_SUCCESS_PROMPT if success else EXTRACT_FAILURE_PROMPT
     return template.format(query=query, trajectory=trajectory)
 
 

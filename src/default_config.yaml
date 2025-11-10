@@ -1,7 +1,7 @@
 # 运行模式（default | paper_faithful）
 #  - paper_faithful 会强制使用论文同款设置（纯余弦检索、禁用记忆管理等）
 mode:
-  preset: "default"
+  preset: "paper_faithful"
 
 # LLM 配置
 llm:

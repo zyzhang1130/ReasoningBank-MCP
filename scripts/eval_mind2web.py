@@ -14,18 +14,36 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.mind2web.task import evaluate_from_cli, save_eval_output
 
 
+DEFAULT_CONFIG = "config.yaml"
+DEFAULT_DATA_ROOT = "/home/zy1130/datasets/Mind2Web/test_task"
+DEFAULT_SCORES = "/home/zy1130/datasets/Mind2Web/scores_all_data.pkl"
+DEFAULT_OUTPUT_DIR = "outputs/mind2web_test_task"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate a model on Mind2Web using ReasoningBank.")
-    parser.add_argument("--config", default="config.yaml", help="Path to ReasoningBank config file.")
-    parser.add_argument("--data-root", required=True, help="Directory containing Mind2Web JSON files.")
+    parser.add_argument("--config", default=DEFAULT_CONFIG, help="Path to ReasoningBank config file.")
+    parser.add_argument(
+        "--data-root",
+        default=DEFAULT_DATA_ROOT,
+        help="Directory containing Mind2Web JSON files.",
+    )
     parser.add_argument("--split", default="test_task", help="Mind2Web split (e.g., test_task, test_website).")
-    parser.add_argument("--scores-pickle", help="Optional scores_all_data.pkl path for candidate ranks.")
+    parser.add_argument(
+        "--scores-pickle",
+        default=DEFAULT_SCORES,
+        help="Optional scores_all_data.pkl path for candidate ranks.",
+    )
     parser.add_argument("--top-k", type=int, default=50, help="Top-K candidates to keep per step.")
     parser.add_argument("--prompt-template", help="Custom prompt template JSON (defaults to bundled file).")
     parser.add_argument("--max-examples", type=int, help="Only evaluate the first N samples.")
     parser.add_argument("--temperature", type=float, default=0.0, help="LLM temperature (paper uses 0).")
     parser.add_argument("--max-tokens", type=int, default=512, help="Max generation tokens.")
-    parser.add_argument("--output-dir", help="Directory to save metrics/predictions JSON files.")
+    parser.add_argument(
+        "--output-dir",
+        default=DEFAULT_OUTPUT_DIR,
+        help="Directory to save metrics/predictions JSON files.",
+    )
     return parser.parse_args()
 
 
