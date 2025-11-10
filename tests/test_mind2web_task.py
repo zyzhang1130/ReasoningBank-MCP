@@ -71,7 +71,7 @@ def _build_dataset(tmp_path: Path) -> Mind2WebDataset:
 @pytest.mark.asyncio
 async def test_mind2web_task_runs_end_to_end(tmp_path):
     dataset = _build_dataset(tmp_path)
-    llm = DummyLLM(["Answer: B.\nAction: CLICK."])
+    llm = DummyLLM(["Answer: B.\nAction: CLICK.\nValue: N/A."])
     prompt_builder = Mind2WebPromptBuilder()
 
     task = Mind2WebTask(
@@ -86,13 +86,54 @@ async def test_mind2web_task_runs_end_to_end(tmp_path):
     result = await task.evaluate()
 
     assert result.metrics["step_micro"] == 1.0
+    assert result.metrics["operation_micro"] == 1.0
     assert result.metrics["task_success"] == 1.0
     assert len(result.predictions) == 1
     assert result.predictions[0].candidate_id == "1001"
 
 
 def test_parse_action_output_handles_aliases():
-    output = "Answer: AA.\nAction: press button."
-    choice, action = parse_action_output(output)
+    output = "Answer: AA.\nAction: press button.\nValue: \"Seattle\""
+    choice, action, value = parse_action_output(output)
     assert choice == "AA"
     assert action == "CLICK"
+    assert value == "Seattle"
+
+
+@pytest.mark.asyncio
+async def test_operation_f1_requires_matching_value(tmp_path):
+    payload = [
+        {
+            "task_id": "task_type",
+            "confirmed_task": "Type the city",
+            "website": "example.com",
+            "actions": [
+                {
+                    "action_type": "TYPE",
+                    "value": "Seattle",
+                    "cleaned_html": "<input id='city'>",
+                    "pos_candidates": [{"backend_node_id": 2001, "repr": "<input id='city'>"}],
+                    "neg_candidates": [{"backend_node_id": 2002, "repr": "<input id='state'>"}],
+                }
+            ],
+        }
+    ]
+    data_root = tmp_path / "type_task.json"
+    data_root.write_text(json.dumps(payload), encoding="utf-8")
+
+    dataset = Mind2WebDataset(data_root=data_root, split="type_task", top_k=5)
+    llm = DummyLLM(["Answer: B.\nAction: TYPE.\nValue: Seattle"])
+    prompt_builder = Mind2WebPromptBuilder()
+
+    task = Mind2WebTask(
+        dataset=dataset,
+        llm=llm,
+        prompt_builder=prompt_builder,
+        temperature=0.0,
+        max_tokens=64,
+        log_every=0,
+    )
+
+    result = await task.evaluate()
+    assert result.metrics["operation_micro"] == 1.0
+    assert result.predictions[0].operation_f1 == 1.0

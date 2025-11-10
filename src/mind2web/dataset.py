@@ -213,7 +213,7 @@ class Mind2WebDataset(Iterable[Mind2WebSample]):
         *,
         top_k: Optional[int] = 50,
         scores_path: Optional[str | Path] = None,
-        skip_samples_without_positive: bool = True,
+        skip_samples_without_positive: bool = False,
     ):
         self.data_root = Path(data_root)
         self.split = split

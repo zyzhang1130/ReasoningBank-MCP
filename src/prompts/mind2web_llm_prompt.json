@@ -1,7 +1,7 @@
 {
   "system_prompt": "You are an expert web agent. Read the DOM snapshot, reason carefully about the user's instruction and previous actions, then pick the best next step from the provided options.",
   "question": "What should be the next action? Select from the options below. If no option matches, choose option A ('None of the above').",
-  "answer_instructions": "Respond with two lines:\nAnswer: <LETTER>.\nAction: <CLICK/TYPE/SELECT>.",
+  "answer_instructions": "Respond with three lines:\nAnswer: <LETTER>.\nAction: <CLICK/TYPE/SELECT>.\nValue: <typed text or N/A>.",
   "examples": [
     {
       "task": "Pay the electricity bill via the utility portal.",
@@ -9,7 +9,7 @@
       "context": "<html><body><div id=\"dashboard\"><h1>Welcome</h1><button id=\"pay-bill\">Pay Bill</button><a id=\"view-usage\">View usage</a></div></body></html>",
       "question": "Which element completes the step 'Open the bill payment page'?",
       "choices": "Options:\nA. None of the above\nB. <button id=\"pay-bill\">Pay Bill</button>\nC. <a id=\"view-usage\">View usage</a>",
-      "answer": "Answer: B.\nAction: CLICK."
+      "answer": "Answer: B.\nAction: CLICK.\nValue: N/A."
     },
     {
       "task": "Book a flight from Seattle to Boston.",
@@ -17,7 +17,7 @@
       "context": "<html><body><form id=\"search\"><input name=\"depart-date\" placeholder=\"Departure\"><input name=\"return-date\" placeholder=\"Return\"><button id=\"search-btn\">Search</button></form></body></html>",
       "question": "After selecting the dates, what comes next?",
       "choices": "Options:\nA. None of the above\nB. <input name=\"depart-date\" placeholder=\"Departure\">\nC. <input name=\"return-date\" placeholder=\"Return\">\nD. <button id=\"search-btn\">Search</button>",
-      "answer": "Answer: D.\nAction: CLICK."
+      "answer": "Answer: D.\nAction: CLICK.\nValue: N/A."
     },
     {
       "task": "Update the shipping address on the profile page.",
@@ -25,7 +25,7 @@
       "context": "<html><body><div class=\"address\"><label>Street</label><input id=\"street\" value=\"123 Main\"/><label>City</label><input id=\"city\"/><button id=\"save\">Save</button></div></body></html>",
       "question": "Enter the new city name.",
       "choices": "Options:\nA. None of the above\nB. <input id=\"street\" value=\"123 Main\">\nC. <input id=\"city\">\nD. <button id=\"save\">Save</button>",
-      "answer": "Answer: C.\nAction: TYPE."
+      "answer": "Answer: C.\nAction: TYPE.\nValue: \"New city name\"."
     }
   ]
 }

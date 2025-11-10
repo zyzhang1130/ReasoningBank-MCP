@@ -8,9 +8,9 @@ This document explains how to reproduce the Mind2Web benchmark inside the Reason
 2. **Context extraction** – Each action stores both `raw_html` and `cleaned_html`. The loader prefers `cleaned_html` so that the candidate list stays aligned with the DOM snapshot shipped with Mind2Web.
 3. **Candidate gathering** – Both `pos_candidates` and `neg_candidates` are parsed, normalised, and converted into `CandidateElement` objects. Metadata such as tag names, visible texts, or any extra attributes are preserved in `candidate.attributes`.
 4. **scores_all_data.pkl support** – If you downloaded the official pickle, pass its location to the dataset. The loader builds a flexible lookup map (`backend_node_id -> {score, rank}`) so the step-level samples can carry their probability scores and candidate ranks.
-5. **Top-K filtering** – Set `top_k` (paper uses 50). Candidates whose rank is greater than or equal to `top_k` are dropped. When rank metadata is missing the loader keeps the first `top_k` elements but still ensures every positive candidate survives the pruning. Samples that end up with zero positives are automatically skipped (configurable).
+5. **Top-K filtering** – Set `top_k` (paper uses 50). Candidates whose rank is greater than or equal to `top_k` are dropped. When rank metadata is missing the loader keeps the first `top_k` elements but still ensures every positive candidate survives the pruning. If all positives are pruned, the sample now remains in the dataset (the paper still counts the step as a failure). Pass `skip_samples_without_positive=True` only if you explicitly want to drop those steps.
 
-The dataset summary (`Mind2WebDataset.summary()`) reports how many steps were loaded and how many were dropped because their gold element disappeared after filtering.
+The dataset summary (`Mind2WebDataset.summary()`) reports how many steps were loaded and how many were dropped because you opted into skipping.
 
 ## 3. Prompting & Prediction (`src/mind2web/prompting.py`, `src/mind2web/task.py`)
 
@@ -20,9 +20,9 @@ The dataset summary (`Mind2WebDataset.summary()`) reports how many steps were lo
    - Previous actions (`action_repr` strings from earlier steps).
    - The cleaned HTML context wrapped inside `"""` blocks (auto-truncated to avoid giant payloads).
    - Options list. Option `A` is always “None of the above”, while `B`, `C`, … point to actual DOM candidates. For transparency, every option includes snippet text plus rank/score metadata (when available).
-   - An explicit answer format reminder (`Answer: X.\nAction: CLICK`).
+   - An explicit answer format reminder (`Answer: X.\nAction: CLICK.\nValue: <typed text or N/A>`).
 3. **LLM decoding** – `Mind2WebTask` relies on the standard ReasoningBank LLM providers. Temperature defaults to `0.0` (deterministic decoding) and can be controlled per run.
-4. **Parsing outputs** – The helper `parse_action_output` extracts both the option letter and the action type via regex. Action names are normalised (`CLICK`, `TYPE`, `SELECT`) before evaluating against the ground truth.
+4. **Parsing outputs** – The helper `parse_action_output` extracts the option letter, the action type, and any provided input string (`Value: ...`). Action names are normalised (`CLICK`, `TYPE`, `SELECT`) before computing metrics.
 5. **Step-by-step loop** – `Mind2WebTask.evaluate()` walks through the dataset, builds prompts, calls the model, and records per-step predictions. Each prediction stores the raw LLM output, the prompt, and success flags (element/action/step).
 
 ## 4. Metrics (`src/mind2web/task.py`)
@@ -30,16 +30,14 @@ The dataset summary (`Mind2WebDataset.summary()`) reports how many steps were lo
 For each sample we compute:
 
 - **Element Accuracy** – Whether the predicted candidate ID is inside the post-filter gold list.
-- **Action Accuracy** – Whether the predicted operation (CLICK/TYPE/SELECT) matches the step label.
-- **Step Success** – Element and action must both be correct.
+- **Operation F1** – Token-level F1 for the predicted operation output. It collapses to simple accuracy for `CLICK`, but for `TYPE/SELECT` it checks the action type and the text you produced via the `Value:` line.
+- **Step Success** – Element must match and Operation F1 must be `1.0`.
 
 Aggregations:
 
-- **Micro** averages (overall accuracy across all steps) for element/action/step.
-- **Macro** averages (per-task accuracy averaged across tasks) to match the paper’s protocol.
+- **Micro** averages (overall accuracy across all steps) for element/operation/step.
+- **Macro** averages (per-task averages) to match the paper’s protocol.
 - **Task success rate** – A task counts as solved only when every step is successful.
-
-The accumulator also tracks how many steps were skipped (e.g., after top-k filtering removed the positive element).
 
 ## 5. Evaluation Script (`scripts/eval_mind2web.py`)
 
@@ -79,7 +77,7 @@ After downloading `test.zip` from the dataset page, unzip it with the password p
 
 ## 7. Testing & Reproducibility
 
-1. Start with a handful of samples (`--max-examples 5`) to ensure prompts look correct and the parsing step recognises the “Answer/Action” fields.
+1. Start with a handful of samples (`--max-examples 5`) to ensure prompts look correct and the parsing step recognises the “Answer/Action/Value” fields.
 2. Once satisfied, run the full `test_task`, `test_website`, and `test_domain` splits. Compare macro step accuracy and task success with the paper’s reported results.
 3. The integration is read-only with respect to ReasoningBank’s memory. During benchmarking you can keep MCP memory disabled, or optionally route trajectories into the MCP server if you want to study continual-learning effects—nothing in the new modules depends on it.
 4. Deterministic decoding (`temperature=0`) plus rank-based candidate filtering make runs reproducible; still, set environment seeds for any local decoder (e.g., Flan-T5) if you leave sampling on.

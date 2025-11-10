@@ -62,7 +62,7 @@ def test_dataset_keeps_positive_after_topk(tmp_path):
     assert sample.candidates[0].rank == 0
 
 
-def test_dataset_skips_when_positive_pruned(tmp_path):
+def test_dataset_retains_samples_even_when_positive_pruned(tmp_path):
     root, scores = _write_sample_json(tmp_path, pos_rank=10, neg_rank=0)
 
     dataset = Mind2WebDataset(
@@ -70,6 +70,24 @@ def test_dataset_skips_when_positive_pruned(tmp_path):
         split="test_task",
         top_k=1,
         scores_path=scores,
+    )
+
+    assert len(dataset.samples) == 1
+    sample = dataset.samples[0]
+    assert sample.positive_ids == []
+    assert sample.has_positive is False
+    assert len(dataset.skipped_samples) == 0
+
+
+def test_dataset_can_skip_when_requested(tmp_path):
+    root, scores = _write_sample_json(tmp_path, pos_rank=10, neg_rank=0)
+
+    dataset = Mind2WebDataset(
+        data_root=root,
+        split="test_task",
+        top_k=1,
+        scores_path=scores,
+        skip_samples_without_positive=True,
     )
 
     assert len(dataset.samples) == 0
